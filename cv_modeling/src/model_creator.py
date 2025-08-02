@@ -233,7 +233,7 @@ class ModelCreator:
     def export_to_json(self, model_3d: Model3D, output_path: str) -> Dict[str, Any]:
 
         output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exists_ok=True)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         #Convert to dictionary
         model_dict = self._model_to_dict(model_3d)
