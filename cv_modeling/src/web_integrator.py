@@ -142,10 +142,9 @@ class WebIntegrator:
         #Create visualization config
         viz_config = self._create_visualization_config(sport_type, fused_model.metadata.world_scale)
         
-        #Create coaching data
+        #Create coaching data as emtpty
+        #TODO
         coaching_data = {}
-        if self.include_coaching_data:
-            coaching_data = self._create_coaching_data(fused_model, segmented_motion)
         
         web_model = WebSportsModel(
             metadata=metadata,
@@ -326,3 +325,282 @@ class WebIntegrator:
             web_events.append(web_event)
         
         return web_events
+    
+    #Create playback controls
+    def _create_playback_controls(self, fused_model: FusedModel3D, segmented_motion: Optional[SegmentedMotion]) -> WebPlaybackControl: 
+        
+        #Default loop points (full sequence)
+        loop_points = [{
+            'name': 'Full Sequence',
+            'start_time': 0.0,
+            'end_time': fused_model.metadata.duration_seconds,
+            'start_frame': 0,
+            'end_frame': fused_model.metadata.total_frames - 1,
+            'quality': 1.0,
+            'default': True
+        }]
+        
+        phase_controls = []
+        cycle_controls = []
+        timeline_markers = []
+        
+        if segmented_motion:
+            #Add segmented loop points
+            for loop_rec in segmented_motion.loop_recommendations:
+                if loop_rec.get('recommended', False):
+                    loop_points.append({
+                        'name': f"Loop {loop_rec['cycle_id']}",
+                        'start_time': loop_rec['start_time'],
+                        'end_time': loop_rec['end_time'],
+                        'start_frame': loop_rec['start_frame'],
+                        'end_frame': loop_rec['end_frame'],
+                        'quality': loop_rec['loop_quality'],
+                        'cycle_id': loop_rec['cycle_id']
+                    })
+            
+            #Phase controls
+            for phase in segmented_motion.overall_phases:
+                phase_control = {
+                    'name': phase.name,
+                    'start_time': phase.start_time,
+                    'end_time': phase.end_time,
+                    'start_frame': phase.start_frame,
+                    'end_frame': phase.end_frame,
+                    'duration': phase.duration,
+                    'type': phase.phase_type,
+                    'intensity': phase.movement_intensity,
+                    'body_parts': phase.primary_body_parts
+                }
+                phase_controls.append(phase_control)
+                
+                #Add phase markers
+                marker = WebTimelineMarker(
+                    timestamp=phase.start_time,
+                    frame_index=phase.start_frame,
+                    label=f"{phase.phase_type.title()} Phase",
+                    marker_type="phase",
+                    color=self.marker_colors['phase'].get(phase.phase_type, '#87CEEB'),
+                    importance="medium",
+                    description=f"{phase.phase_type.title()} phase ({phase.duration:.1f}s)"
+                )
+                timeline_markers.append(marker)
+            
+            #Cycle controls
+            for cycle in segmented_motion.movement_cycles:
+                cycle_control = {
+                    'cycle_id': cycle.cycle_id,
+                    'name': f"Cycle {cycle.cycle_id + 1}",
+                    'start_time': cycle.start_time,
+                    'end_time': cycle.end_time,
+                    'start_frame': cycle.start_frame,
+                    'end_frame': cycle.end_frame,
+                    'duration': cycle.duration,
+                    'quality': cycle.cycle_quality,
+                    'phases': len(cycle.phases)
+                }
+                cycle_controls.append(cycle_control)
+                
+                #Add cycle markers
+                marker = WebTimelineMarker(
+                    timestamp=cycle.start_time,
+                    frame_index=cycle.start_frame,
+                    label=f"Cycle {cycle.cycle_id + 1}",
+                    marker_type="cycle",
+                    color=self.marker_colors['cycle'],
+                    importance="high",
+                    description=f"Movement cycle {cycle.cycle_id + 1} (Quality: {cycle.cycle_quality:.1f})"
+                )
+                timeline_markers.append(marker)
+            
+            #Add key event markers
+            for event in segmented_motion.key_events:
+                marker = WebTimelineMarker(
+                    timestamp=event['timestamp'],
+                    frame_index=event['frame_index'],
+                    label=event['type'].replace('_', ' ').title(),
+                    marker_type="event",
+                    color=self.marker_colors['event'].get(event['type'], '#FFD700'),
+                    importance=event.get('importance', 'medium'),
+                    description=f"{event['type'].replace('_', ' ').title()} at {event['timestamp']:.2f}s"
+                )
+                timeline_markers.append(marker)
+        
+        return WebPlaybackControl(
+            loop_points=loop_points,
+            phase_controls=phase_controls,
+            cycle_controls=cycle_controls,
+            speed_presets=[0.25, 0.5, 1.0, 2.0, 4.0],
+            timeline_markers=timeline_markers
+        )
+    
+
+    #Create Three.js visualizations config
+    def _create_visualization_config(self, sport_type: str, world_scale: float) -> WebVisualizationConfig:
+        
+        #Sport-specific camera positioning
+        sport_cameras = {
+            'soccer': {
+                'position': [world_scale * 0.8, world_scale * 0.6, world_scale * 1.2],
+                'target': [0, -world_scale * 0.2, 0]
+            },
+            'basketball': {
+                'position': [world_scale * 0.6, world_scale * 0.8, world_scale * 1.0],
+                'target': [0, world_scale * 0.1, 0]
+            },
+            'general': {
+                'position': [world_scale * 0.7, world_scale * 0.5, world_scale * 1.1],
+                'target': [0, 0, 0]
+            }
+        }
+        
+        camera_config = sport_cameras.get(sport_type, sport_cameras['general'])
+        
+        #Scale-aware configuration
+        viz_config = self.default_visualization_config.copy()
+        viz_config['camera_position'] = camera_config['position']
+        viz_config['camera_target'] = camera_config['target']
+        
+        #Scale skeleton and object sizes
+        viz_config['skeleton_config']['joint_radius'] = world_scale * 0.02
+        viz_config['skeleton_config']['bone_thickness'] = world_scale * 0.015
+        
+        return WebVisualizationConfig(
+            camera_position=viz_config['camera_position'],
+            camera_target=viz_config['camera_target'],
+            lighting_config=viz_config['lighting_config'],
+            skeleton_config=viz_config['skeleton_config'],
+            object_config=viz_config['object_config'],
+            animation_config=viz_config['animation_config']
+        )
+    
+    def export_web_model(self, web_model: WebSportsModel, output_path: str) -> Dict[str, Any]:
+        
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        #Convert to dictionary
+        model_dict = self._web_model_to_dict(web_model)
+
+        #Convert numpy types to JSON-serializable types
+        model_dict = self._convert_numpy_types(model_dict)
+        
+        #Create JSON string
+        if self.optimize_for_mobile:
+            # More aggressive compression for mobile
+            json_string = json.dumps(model_dict, separators=(',', ':'))
+        else:
+            json_string = json.dumps(model_dict, separators=(',', ':'))
+        
+        #Calculate sizes
+        uncompressed_size = len(json_string.encode('utf-8'))
+        
+        if self.compress_output:
+            #Save compressed version
+            compressed_path = output_path.with_suffix(output_path.suffix + '.gz')
+            with gzip.open(compressed_path, 'wt', encoding='utf-8') as f:
+                f.write(json_string)
+            compressed_size = compressed_path.stat().st_size
+            
+            print(f"Web model exported (compressed): {compressed_path}")
+            print(f"    Original size: {uncompressed_size:,} bytes ({uncompressed_size/1024:.1f} KB)")
+            print(f"    Compressed size: {compressed_size:,} bytes ({compressed_size/1024:.1f} KB)")
+            print(f"    Compression ratio: {(1-compressed_size/uncompressed_size)*100:.1f}%")
+            
+            export_info = {
+                "compressed_path": str(compressed_path),
+                "uncompressed_size": uncompressed_size,
+                "compressed_size": compressed_size,
+                "compression_ratio": (1-compressed_size/uncompressed_size),
+                "web_optimized": True
+            }
+        else:
+            #Save uncompressed version
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(model_dict, f, indent=2)
+            
+            print(f"Web model exported: {output_path}")
+            print(f"    File size: {uncompressed_size:,} bytes ({uncompressed_size/1024:.1f} KB)")
+            
+            export_info = {
+                "output_path": str(output_path),
+                "file_size": uncompressed_size,
+                "web_optimized": True
+            }
+        
+        return export_info
+
+    #Convert websportmode to a dictonary for json serialization
+    def _web_model_to_dict(self, web_model: WebSportsModel) -> Dict[str, Any]: 
+        
+        model_dict = {
+            "format": "three-js-sports-model",
+            "version": "2.0",
+            "metadata": asdict(web_model.metadata),
+            "human_animation": web_model.human_animation,
+            "object_animation": web_model.object_animation,
+            "interaction_events": web_model.interaction_events,
+            "playback_controls": {
+                "loop_points": web_model.playback_controls.loop_points,
+                "phase_controls": web_model.playback_controls.phase_controls,
+                "cycle_controls": web_model.playback_controls.cycle_controls,
+                "speed_presets": web_model.playback_controls.speed_presets,
+                "timeline_markers": [asdict(marker) for marker in web_model.playback_controls.timeline_markers] if web_model.playback_controls.timeline_markers else []
+            },
+            "visualization_config": asdict(web_model.visualization_config),
+        }
+        
+        #TODO
+        # Add coaching data if included
+        # if self.include_coaching_data and web_model.coaching_data:
+        #     model_dict["coaching_data"] = web_model.coaching_data
+        
+        return model_dict
+    
+    #Convert numpy types to JSON serializable Python types
+    def _convert_numpy_types(self, obj):
+        """Convert numpy types to JSON-serializable Python types"""
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: self._convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_numpy_types(item) for item in obj]
+        else:
+            return obj
+        
+
+    #Create configuration for Three.js loader
+    def create_three_js_loader_config(self, web_model: WebSportsModel) -> Dict[str, Any]:
+        
+        return {
+            "loader_version": "1.0",
+            "model_format": "three-js-sports-model",
+            "loading_priority": {
+                "skeleton": "high",
+                "objects": "medium", 
+                "interactions": "low",
+                "coaching_data": "background"
+            },
+            "render_order": ["skeleton", "objects", "interactions"],
+            "animation_settings": {
+                "auto_start": web_model.metadata.auto_loop,
+                "default_speed": web_model.metadata.default_playback_speed,
+                "interpolation": "linear"
+            },
+            "camera_defaults": {
+                "position": web_model.visualization_config.camera_position,
+                "target": web_model.visualization_config.camera_target,
+                "controls": "orbit"
+            },
+            "ui_elements": {
+                "timeline": True,
+                "phase_selector": len(web_model.playback_controls.phase_controls) > 0,
+                "cycle_selector": len(web_model.playback_controls.cycle_controls) > 0,
+                "speed_control": True,
+                "loop_control": True
+            }
+        }

@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""
+'''
 Complete Sports Video Analysis Pipeline
 =======================================
 
@@ -15,16 +14,15 @@ Processes a single sports video through the complete pipeline:
 9. Web integration
 
 Output: Three.js-ready JSON file for web visualization
-"""
+'''
+
+
 
 import sys
 import os
 import time
 import argparse
 from pathlib import Path
-
-#Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.video_processor import VideoProcessor
 from src.pose_detector import PoseDetector
@@ -136,10 +134,7 @@ class SportsVideoPipeline:
                     pose_frames.append(pose_frame)
             
             print(f"Pose detection complete: {len(pose_frames)} frames processed")
-            if pose_frames:
-                avg_confidence = sum(sum(kp.confidence for kp in frame.keypoints) for frame in pose_frames) / (len(pose_frames) * 33)
-                print(f"    Average confidence: {avg_confidence:.3f}")
-            print()
+            
             
             object_frames = []
             if self.enable_yolo and self.object_detector:
@@ -376,6 +371,9 @@ def main():
     )
     
     #Process video
+    args.video_path = './data/trimmed_data/elastico_skill_1.mp4'
+    args.drill_name = 'Elastico'
+    args.max_frames = 60
     results = pipeline.process_video(
         video_path=args.video_path,
         drill_name=args.drill_name,
