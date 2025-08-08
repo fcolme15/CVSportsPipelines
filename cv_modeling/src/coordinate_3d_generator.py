@@ -67,6 +67,7 @@ class Coordinate3DGenerator:
         return poses_3d
         
     #Calculate scale factor to convert normalized coordinates to real-world meters
+    #Use the normalized torso length to get  scaling factor
     def _calculate_world_scale(self, first_frame: PoseFrame) -> float:
 
         #Use shoulder to hip distance as a reference
@@ -78,14 +79,14 @@ class Coordinate3DGenerator:
         #Calculate torso length in normalized coordinates 
         shoulder_center_y = (left_shoulder.y + right_shoulder.y) / 2
         hip_center_y = (left_hip.y + right_hip.y) / 2
-        torso_lenght_normalized = abs(shoulder_center_y - hip_center_y)
+        torso_length_normalized = abs(shoulder_center_y - hip_center_y)
 
-        if torso_lenght_normalized > 0:
+        if torso_length_normalized > 0:
             #Expected torso length in meters
             expected_torso_meters = self.reference_height * self.body_proportions['torso_length']
 
             #Scale factor(meters per normalized unit)
-            scale_factor = expected_torso_meters / torso_lenght_normalized
+            scale_factor = expected_torso_meters / torso_length_normalized
 
             return scale_factor
 
@@ -127,7 +128,7 @@ class Coordinate3DGenerator:
     #Convert single 2D pose to 
     def _apply_depth_constraints(self, keypoint_index: int, z_coord: float, existing_keypoints: List[Keypoint3D]) -> float:
         #TODO
-        #For now, keep it simple - just ensure reasonable depth variation
+        #For now, just ensure reasonable depth variation
         #Future enhancement: add bone length constraints, joint angle limits
 
         #Limit extreme depth values

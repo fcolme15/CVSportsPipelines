@@ -25,7 +25,7 @@ class DataSmoother:
         smoothed_data = {}
         #MediaPipe has 33 keypoints
         for keypoint_idx in range(33): 
-            keypoint_name = f'keypoint_{keypoint_idx}'
+            #keypoint_name = f'keypoint_{keypoint_idx}' 
             
             if keypoint_idx in keypoint_data:
                 #Smooth coords separately
@@ -108,7 +108,7 @@ class DataSmoother:
         valid_mask = confidence >= self.confidence_threshold
 
         if np.sum(valid_mask) < 2:
-            #Too fel valid points. Return original
+            #Too few valid points. Return original
             return coordinates
         
         #Iterpolate missing points
@@ -133,7 +133,7 @@ class DataSmoother:
         if len(coordinates) <= 5:
             return coordinates
         
-        #Calculate roling statistics
+        #Calculate rolling statistics
         mean = np.mean(coordinates)
         std = np.std(coordinates)
 
@@ -206,4 +206,3 @@ class DataSmoother:
         
         return smoothed_frames
             
-

@@ -147,16 +147,13 @@ class SportsVideoPipeline:
                 else:
                     for frame_idx, frame in self.video_processor.get_frames(max_frames=max_frames):
                         timestamp = frame_idx / fps
-                        object_frame = self.object_detector.process_frame(frame, frame_idx, timestamp)
+                        object_frame = self.object_detector.process_frame(frame, frame_idx, timestamp, context_info={'sport_type': self.sport_type})
                         if object_frame:
-                            enhanced_frame = self.object_detector.enhance_sports_detection(
-                                object_frame, context_info={'sport_type': self.sport_type}
-                            )
-                            object_frames.append(enhanced_frame)
+                            object_frames.append(object_frame)
                     
-                    #Apply tracking
+                    #Apply tracking and smoothing
                     if len(object_frames) > 2:
-                        object_frames = self.object_detector.track_objects_across_frames(object_frames)
+                        object_frames = self.object_detector.track_and_smooth_objects_across_frames(object_frames)
                     
                     total_detections = sum(len(f.detected_objects) for f in object_frames)
                     print(f"Object detection complete: {total_detections} objects in {len(object_frames)} frames")

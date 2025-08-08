@@ -70,7 +70,7 @@ class PoseDetector:
         keypoints = []
         landmarks = results.pose_landmarks.landmark
 
-        for i, landmark in enumerate(landmarks):
+        for landmark in landmarks:
             keypoint = PoseKeyPoint(
                 x = landmark.x,
                 y = landmark.y,

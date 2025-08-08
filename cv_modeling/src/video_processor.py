@@ -28,6 +28,7 @@ class VideoProcessor:
             'duration': None
         }
 
+        #Set the duration
         if self.metadata['fps'] > 0:
             self.metadata['duration'] = self.metadata['frame_count'] / self.metadata['fps']
         

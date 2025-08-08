@@ -94,7 +94,7 @@ class ObjectDetector:
             return False
     
     #Detect objects in a single frame
-    def process_frame(self, frame: np.ndarray, frame_index: int, timestamp: float) -> Optional[ObjectFrame]:
+    def process_frame(self, frame: np.ndarray, frame_index: int, timestamp: float, context_info: dict) -> Optional[ObjectFrame]:
         
         if self.model is None:
             print("Model not initialized. Call initialize_model() first.")
@@ -114,7 +114,7 @@ class ObjectDetector:
                     
                     for i in range(len(boxes)):
                         #Get detection data
-                        bbox = boxes.xyxyn[i].cpu().numpy()  #Normalized coordinates
+                        bbox = boxes.xyxyn[i].cpu().numpy() #Normalized coordinates
                         confidence = float(boxes.conf[i].cpu().numpy())
                         class_id = int(boxes.cls[i].cpu().numpy())
                         
@@ -131,7 +131,10 @@ class ObjectDetector:
                         center_y = (y1 + y2) / 2
                         width = x2 - x1
                         height = y2 - y1
-                        
+
+                        if class_name == 'sports_ball':
+                            class_name = self._enhance_sports_detection(width, height, context_info)
+
                         detected_obj = DetectedObject(
                             class_name=class_name,
                             confidence=confidence,
@@ -160,131 +163,56 @@ class ObjectDetector:
             return None
     
     #Enhance the detection with sports specific logic
-    def enhance_sports_detection(self, object_frame: ObjectFrame, context_info: Dict = None) -> ObjectFrame:
+    def _enhance_sports_detection(self, width:float, height:float, context_info: dict) -> str:
         
-        enhanced_objects = []
+        #Use size and context to determine specific ball type
+        ball_area = width * height
         
-        for obj in object_frame.detected_objects:
-            enhanced_obj = obj
+        if context_info and 'sport_type' in context_info:
+            sport = context_info['sport_type'].lower()
+            if 'soccer' in sport:
+                return 'soccer_ball'
+            elif 'basketball' in sport:
+                return 'basketball'
+            elif 'american_football' in sport or 'nfl' in sport:
+                return 'american_football'
+            elif 'tennis' in sport:
+                return 'tennis_ball'
+        
+        #Size-based heuristics
+        elif ball_area > 0.01: #Large ball
+            return 'basketball'
+        elif ball_area > 0.008: #Large oval ball
+            return 'american_football'  
+        elif ball_area > 0.005: #Medium ball  
+            return 'soccer_ball'
+        else: #Small ball
+            return 'tennis_ball'
             
-            #Sports ball refinement
-            if obj.class_name == 'sports_ball':
-                #Use size and context to determine specific ball type
-                ball_area = obj.width * obj.height
-                
-                if context_info and 'sport_type' in context_info:
-                    sport = context_info['sport_type'].lower()
-                    if 'soccer' in sport:
-                        enhanced_obj.class_name = 'soccer_ball'
-                    elif 'basketball' in sport:
-                        enhanced_obj.class_name = 'basketball'
-                    elif 'american_football' in sport or 'nfl' in sport:
-                        enhanced_obj.class_name = 'american_football'
-                    elif 'tennis' in sport:
-                        enhanced_obj.class_name = 'tennis_ball'
-                
-                #Size-based heuristics
-                elif ball_area > 0.01: #Large ball
-                    enhanced_obj.class_name = 'basketball'
-                elif ball_area > 0.008: #Large oval ball
-                    enhanced_obj.class_name = 'american_football'  
-                elif ball_area > 0.005: #Medium ball  
-                    enhanced_obj.class_name = 'soccer_ball'
-                else: #Small ball
-                    enhanced_obj.class_name = 'tennis_ball'
-            
-            enhanced_objects.append(enhanced_obj)
-        
-        return ObjectFrame(
-            frame_index=object_frame.frame_index,
-            timestamp=object_frame.timestamp,
-            detected_objects=enhanced_objects,
-            detection_confidence=object_frame.detection_confidence
-        )
-    
-    #Simple object tracking across frames for consistency
-    def track_objects_across_frames(self, object_frames: List[ObjectFrame]) -> List[ObjectFrame]:
+    #Object tracking across frames applying temporal smoothing to positions and confidence values
+    def track_and_smooth_objects_across_frames(self, object_frames: List[ObjectFrame]) -> List[ObjectFrame]:
         
         if len(object_frames) < 2:
             return object_frames
         
-        print(f"Applying object tracking across {len(object_frames)} frames.")
+        print(f"Tracking and smoothing objects across {len(object_frames)} frames.")
         
-        #Apply light smoothing first if enabled
-        if self.light_smoothing and len(object_frames) >= 3:
-            object_frames = self._apply_light_smoothing(object_frames)
-        
-        tracked_frames = []
-        
-        for i, current_frame in enumerate(object_frames):
-            #Ignore the first frame from tracking
-            if i == 0:
-                tracked_frames.append(current_frame)
-                continue
-            
-            previous_frame = tracked_frames[i-1]
-            tracked_objects = []
-            
-            for current_obj in current_frame.detected_objects:
-                best_match = None
-                best_distance = float('inf')
-                
-                #Find closest object of same class in previous frame
-                for prev_obj in previous_frame.detected_objects:
-                    if prev_obj.class_name == current_obj.class_name:
-                        #Calculate distance between centers
-                        distance = np.sqrt(
-                            (current_obj.center_x - prev_obj.center_x)**2 + 
-                            (current_obj.center_y - prev_obj.center_y)**2
-                        )
-                        
-                        if distance < best_distance and distance < 0.1:  #Max tracking distance
-                            best_distance = distance
-                            best_match = prev_obj
-                
-                #Use tracking to smooth confidence if object was tracked
-                if best_match:
-                    #Smooth confidence with previous frame
-                    smoothed_confidence = (current_obj.confidence + best_match.confidence) / 2
-                    current_obj.confidence = smoothed_confidence
-                
-                tracked_objects.append(current_obj)
-            
-            tracked_frame = ObjectFrame(
-                frame_index=current_frame.frame_index,
-                timestamp=current_frame.timestamp,
-                detected_objects=tracked_objects,
-                detection_confidence=current_frame.detection_confidence
-            )
-            
-            tracked_frames.append(tracked_frame)
-        
-        print(f"Object tracking complete")
-        return tracked_frames
-    
-    #Apply light temporal smoothing to remove YOLO detection jitter
-    def _apply_light_smoothing(self, object_frames: List[ObjectFrame]) -> List[ObjectFrame]:
-        
-        print(f"Applying light YOLO smoothing to {len(object_frames)} frames.")
-        
-        #Group objects by class name for individual smoothing
+        #Build object tracks by class name
         object_tracks = {}
-        
-        #Build tracks for each object class
         for frame_idx, frame in enumerate(object_frames):
             for obj in frame.detected_objects:
                 if obj.class_name not in object_tracks:
                     object_tracks[obj.class_name] = []
+                #Append Every frame pertaining to the class
                 object_tracks[obj.class_name].append((frame_idx, obj))
         
-        #Apply light smoothing to each track
-        smoothing_window = 3  #Small window for light smoothing
-        
+        #Apply smoothing to each track
+        smoothing_window = 3
         for class_name, track in object_tracks.items():
             if len(track) < smoothing_window:
-                continue  #Need minimum frames for smoothing
+                continue #Need minimum frames for smoothing
             
-            #Extract positions and sizes
+            #Extract data arrays for smoothing
             positions = []
             sizes = []
             confidences = []
@@ -298,7 +226,7 @@ class ObjectDetector:
             sizes = np.array(sizes)
             confidences = np.array(confidences)
             
-            #Apply light smoothing with small window
+            #Apply smoothing
             smoothed_positions = self._smooth_array(positions, smoothing_window)
             smoothed_sizes = self._smooth_array(sizes, smoothing_window)
             smoothed_confidences = self._smooth_array(confidences.reshape(-1, 1), smoothing_window).flatten()
@@ -312,14 +240,13 @@ class ObjectDetector:
                     obj.height = float(smoothed_sizes[i][1])
                     obj.confidence = float(smoothed_confidences[i])
                     
-                    #Recalculate bounding box from center and size
+                    #Recalculate bounding box from smoothed center and size
                     x1 = obj.center_x - obj.width / 2
                     y1 = obj.center_y - obj.height / 2
                     x2 = obj.center_x + obj.width / 2
                     y2 = obj.center_y + obj.height / 2
                     obj.bbox = (x1, y1, x2, y2)
-        
-        print(f"Light YOLO smoothing complete")
+
         return object_frames
     
     #Apply simple moving average smoothing to array data
@@ -393,4 +320,4 @@ class ObjectDetector:
         if self.model:
             del self.model
             self.model = None
-        print("🧹 ObjectDetector cleaned up")
+        print("ObjectDetector cleaned up")
