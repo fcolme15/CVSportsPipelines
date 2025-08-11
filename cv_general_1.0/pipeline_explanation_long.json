@@ -1,0 +1,1310 @@
+{
+    "model_processing_beta": {
+        "project_name": "Ultimate Sports Workout Hub - 3D Model Processing",
+        "implementation_date": "2025-07-24",
+        "status": "Step 5 completed - 3D coordinate generation working",
+        "processing_approach": {
+            "scope": "Single video processing (multi-video combinations planned for future)",
+            "target_sports": "Soccer drills initially, expandable to basketball/football",
+            "critical_tracking": "Wrists, ankles, arms - essential for sports movement accuracy",
+            "video_duration": "2-3 seconds optimal (complete movement cycles)",
+            "looping_strategy": "Process once, loop in web viewer with user controls"
+        },
+        "optimal_video_specifications": {
+            "format": "MP4 (H.264 codec)",
+            "resolution": "1080p minimum (1920x1080)",
+            "frame_rate": "60fps ideal, 30fps minimum",
+            "bitrate": "8-15 Mbps for quality without huge files",
+            "duration": "5-15 seconds for single drill loops",
+            "camera_setup": {
+                "angle": "Side view (90° from movement direction) - best for soccer drills",
+                "alternative_angle": "45° diagonal for agility/cone drills",
+                "distance": "10-15 feet from player",
+                "height": "Camera at waist/chest level",
+                "lighting": "Outdoor daylight or well-lit indoor",
+                "background": "Minimal clutter, contrasting with player clothing",
+                "clothing": "Fitted shirt/shorts (avoid loose/baggy clothes)"
+            }
+        },
+        "testing_drill_selection": {
+            "primary_test": "Simple stationary ball touches/juggling",
+            "rationale": [
+                "Minimal movement - player stays in frame",
+                "Repetitive motion - easy to validate tracking consistency",
+                "Clear foot/ankle tracking focus",
+                "Short duration - quick processing and iteration",
+                "Easy to film - no complex setup needed"
+            ],
+            "alternative": "Basic cone dribbling (straight line, 3-4 touches)"
+        },
+        "codebase_structure": {
+            "completed_files": {
+                "src/video_processor.py": {
+                    "classes": [
+                        {
+                            "name": "VideoProcessor",
+                            "methods": [
+                                "__init__(self, video_path)",
+                                "load_video(self) -> bool",
+                                "get_frames(self, max_frames=None) -> Generator[Tuple[int, np.ndarray]]",
+                                "cleanup(self)",
+                                "__enter__(self)",
+                                "__exit__(self, exc_type, exc_val, exc_tb)"
+                            ],
+                            "attributes": [
+                                "video_path",
+                                "cap",
+                                "metadata"
+                            ],
+                            "purpose": "Load video files and extract frames with metadata"
+                        }
+                    ],
+                    "data_types": [],
+                    "dependencies": [
+                        "cv2",
+                        "numpy",
+                        "pathlib",
+                        "logging"
+                    ]
+                },
+                "src/pose_detector.py": {
+                    "classes": [
+                        {
+                            "name": "PoseDetector",
+                            "methods": [
+                                "__init__(self, min_detection_confidence=0.7, min_tracking_confidence=0.5)",
+                                "process_frame(self, frame, frame_index, timestamp) -> Optional[PoseFrame]",
+                                "_calculate_sports_confidence(self, keypoints) -> float",
+                                "get_keypoint_name(self, index) -> str",
+                                "cleanup(self)"
+                            ],
+                            "attributes": [
+                                "mp_pose",
+                                "pose",
+                                "keypoint_names",
+                                "sports_keypoints"
+                            ],
+                            "purpose": "Extract 33 MediaPipe pose keypoints from video frames"
+                        }
+                    ],
+                    "data_types": [
+                        {
+                            "name": "PoseKeypoint",
+                            "type": "dataclass",
+                            "fields": [
+                                "x: float",
+                                "y: float",
+                                "z: float",
+                                "visibility: float",
+                                "presence: float"
+                            ]
+                        },
+                        {
+                            "name": "PoseFrame",
+                            "type": "dataclass",
+                            "fields": [
+                                "frame_index: int",
+                                "timestamp: float",
+                                "keypoints: List[PoseKeypoint]",
+                                "detection_confidence: float"
+                            ]
+                        }
+                    ],
+                    "dependencies": [
+                        "cv2",
+                        "mediapipe",
+                        "numpy",
+                        "dataclasses",
+                        "typing"
+                    ]
+                },
+                "src/data_smoother.py": {
+                    "classes": [
+                        {
+                            "name": "DataSmoother",
+                            "methods": [
+                                "__init__(self, confidence_threshold=0.5, outlier_std_threshold=2.0, smoothing_window=5)",
+                                "smooth_pose_sequence(self, pose_frames) -> List[PoseFrame]",
+                                "_extract_keypoint_arrays(self, pose_frames) -> dict",
+                                "_smooth_keypoint_trajectory(self, keypoint_coords, keypoint_idx) -> dict",
+                                "_handle_low_confidence_points(self, coordinates, confidence) -> np.ndarray",
+                                "_remove_outliers(self, coordinates) -> np.ndarray",
+                                "_moving_average(self, data, window) -> np.ndarray",
+                                "_reconstruct_pose_frames(self, original_frames, smoothed_data) -> List[PoseFrame]"
+                            ],
+                            "attributes": [
+                                "confidence_threshold",
+                                "outlier_std_threshold",
+                                "smoothing_window"
+                            ],
+                            "purpose": "Apply temporal smoothing and noise removal to pose sequences"
+                        }
+                    ],
+                    "data_types": [],
+                    "dependencies": [
+                        "numpy",
+                        "pandas",
+                        "scipy.signal",
+                        "scipy.interpolate",
+                        "typing"
+                    ]
+                },
+                "src/coordinate_3d_generator.py": {
+                    "classes": [
+                        {
+                            "name": "Coordinate3DGenerator",
+                            "methods": [
+                                "__init__(self, reference_height=1.75, depth_scale_factor=0.5, coordinate_system='right_handed')",
+                                "convert_pose_sequence_to_3d(self, pose_frames) -> List[Pose3D]",
+                                "_calculate_world_scale(self, first_frame) -> float",
+                                "_convert_single_pose_to_3d(self, pose_frame, world_scale) -> Pose3D",
+                                "_apply_depth_constraints(self, keypoint_index, z_coord, existing_keypoints) -> float",
+                                "get_bone_connections(self) -> List[Tuple[int, int]]",
+                                "analyze_movement_quality(self, poses_3d) -> Dict",
+                                "_analyze_keypoint_movement(self, poses_3d, keypoint_idx, name) -> Dict"
+                            ],
+                            "attributes": [
+                                "reference_height",
+                                "depth_scale_factor",
+                                "coordinate_system",
+                                "keypoint_names",
+                                "body_proportions"
+                            ],
+                            "purpose": "Convert 2D pose data to 3D world coordinates with realistic scaling and biomechanical constraints"
+                        }
+                    ],
+                    "data_types": [
+                        {
+                            "name": "Keypoint3D",
+                            "type": "dataclass",
+                            "fields": [
+                                "x: float",
+                                "y: float",
+                                "z: float",
+                                "confidence: float",
+                                "name: str"
+                            ]
+                        },
+                        {
+                            "name": "Pose3D",
+                            "type": "dataclass",
+                            "fields": [
+                                "frame_index: int",
+                                "timestamp: float",
+                                "keypoints_3d: List[Keypoint3D]",
+                                "world_scale: float"
+                            ]
+                        }
+                    ],
+                    "dependencies": [
+                        "numpy",
+                        "typing",
+                        "dataclasses",
+                        "src.pose_detector"
+                    ]
+                },
+                "src/model_creator.py": {
+                    "classes": [
+                        {
+                            "name": "ModelCreator",
+                            "methods": [
+                                "__init__(self, coordinate_precision=3, compress_output=True, optimize_for_web=True)",
+                                "create_3d_model(self, poses_3d, drill_name='Unknown Drill') -> Model3D",
+                                "_create_keyframes(self, poses_3d) -> List[ModelKeyframe]",
+                                "_analyze_movement_patterns(self, poses_3d) -> Dict[str, Any]",
+                                "export_to_json(self, model_3d, output_path) -> Dict[str, Any]",
+                                "_model_to_dict(self, model_3d) -> Dict[str, Any]",
+                                "get_model_statistics(self, model_3d) -> Dict[str, Any]"
+                            ],
+                            "attributes": [
+                                "coordinate_precision",
+                                "compress_output",
+                                "optimize_for_web",
+                                "bone_definitions"
+                            ],
+                            "purpose": "Create optimized 3D model JSON files for web visualization with compression and movement analysis"
+                        }
+                    ],
+                    "data_types": [
+                        {
+                            "name": "ModelMetadata",
+                            "type": "dataclass",
+                            "fields": [
+                                "drill_name: str",
+                                "duration_seconds: float",
+                                "fps: float",
+                                "total_frames: int",
+                                "world_scale: float",
+                                "creation_timestamp: float",
+                                "file_version: str",
+                                "coordinate_system: str"
+                            ]
+                        },
+                        {
+                            "name": "SkeletonBone",
+                            "type": "dataclass",
+                            "fields": [
+                                "start_keypoint: int",
+                                "end_keypoint: int",
+                                "name: str",
+                                "bone_group: str"
+                            ]
+                        },
+                        {
+                            "name": "ModelKeyframe",
+                            "type": "dataclass",
+                            "fields": [
+                                "timestamp: float",
+                                "frame_index: int",
+                                "keypoints: List[Dict[str, Any]]"
+                            ]
+                        },
+                        {
+                            "name": "Model3D",
+                            "type": "dataclass",
+                            "fields": [
+                                "metadata: ModelMetadata",
+                                "skeleton_structure: List[SkeletonBone]",
+                                "keyframes: List[ModelKeyframe]",
+                                "movement_analysis: Dict[str, Any]"
+                            ]
+                        }
+                    ],
+                    "dependencies": [
+                        "json",
+                        "numpy",
+                        "gzip",
+                        "time",
+                        "pathlib",
+                        "dataclasses",
+                        "typing",
+                        "src.coordinate_3d_generator"
+                    ]
+                },
+                "src/object_detector.py": {
+                    "classes": [
+                        {
+                            "name": "ObjectDetector",
+                            "methods": [
+                                "__init__(self, model_size='n', confidence_threshold=0.25, sports_objects_only=True, light_smoothing=True)",
+                                "initialize_model(self) -> bool",
+                                "process_frame(self, frame, frame_index, timestamp) -> Optional[ObjectFrame]",
+                                "enhance_sports_detection(self, object_frame, context_info=None) -> ObjectFrame",
+                                "track_objects_across_frames(self, object_frames) -> List[ObjectFrame]",
+                                "_apply_light_smoothing(self, object_frames) -> List[ObjectFrame]",
+                                "_smooth_array(self, data, window_size) -> np.ndarray",
+                                "get_detection_statistics(self, object_frames) -> Dict[str, Any]",
+                                "cleanup(self)"
+                            ],
+                            "attributes": [
+                                "model_size",
+                                "confidence_threshold",
+                                "sports_objects_only",
+                                "light_smoothing",
+                                "sports_classes",
+                                "enhanced_sports_mapping",
+                                "model",
+                                "class_names"
+                            ],
+                            "purpose": "YOLO-based object detection for sports equipment with light temporal smoothing and sports-specific enhancement"
+                        }
+                    ],
+                    "data_types": [
+                        {
+                            "name": "DetectedObject",
+                            "type": "dataclass",
+                            "fields": [
+                                "class_name: str",
+                                "confidence: float",
+                                "bbox: Tuple[float, float, float, float]",
+                                "center_x: float",
+                                "center_y: float",
+                                "width: float",
+                                "height: float"
+                            ]
+                        },
+                        {
+                            "name": "ObjectFrame",
+                            "type": "dataclass",
+                            "fields": [
+                                "frame_index: int",
+                                "timestamp: float",
+                                "detected_objects: List[DetectedObject]",
+                                "detection_confidence: float"
+                            ]
+                        }
+                    ],
+                    "dependencies": [
+                        "cv2",
+                        "numpy",
+                        "typing",
+                        "dataclasses",
+                        "time",
+                        "ultralytics"
+                    ]
+                },
+                "src/data_fusion.py": {
+                    "classes": [
+                        {
+                            "name": "DataFusion",
+                            "methods": [
+                                "__init__(self, object_depth_estimation='simple', interaction_threshold=0.3, context_smoothing=True)",
+                                "fuse_sequences(self, poses_3d, object_frames, drill_name='Unknown Drill') -> FusedSequence",
+                                "_align_frames_by_timestamp(self, poses_3d, object_frames) -> List[Tuple[Optional[Pose3D], Optional[ObjectFrame]]]",
+                                "_create_fused_frame(self, pose_3d, object_frame) -> FusedFrame",
+                                "_convert_object_to_3d(self, obj_2d, world_scale, pose_3d=None) -> Object3D",
+                                "_estimate_simple_depth(self, obj_2d, world_scale) -> float",
+                                "_estimate_advanced_depth(self, obj_2d, world_scale, pose_3d) -> float",
+                                "_calculate_fusion_confidence(self, pose_3d, object_frame) -> float",
+                                "_apply_context_aware_smoothing(self, fused_frames) -> List[FusedFrame]",
+                                "_analyze_human_movement(self, fused_frames) -> Dict[str, Any]",
+                                "_analyze_object_movement(self, fused_frames) -> Dict[str, Any]",
+                                "_analyze_interactions(self, fused_frames) -> Dict[str, Any]"
+                            ],
+                            "attributes": [
+                                "object_depth_estimation",
+                                "interaction_threshold",
+                                "context_smoothing",
+                                "object_size_estimates"
+                            ],
+                            "purpose": "Combines human pose and object detection data into unified 3D models with context-aware smoothing and interaction analysis"
+                        }
+                    ],
+                    "data_types": [
+                        {
+                            "name": "Object3D",
+                            "type": "dataclass",
+                            "fields": [
+                                "class_name: str",
+                                "confidence: float",
+                                "center_x: float",
+                                "center_y: float",
+                                "center_z: float",
+                                "width: float",
+                                "height: float",
+                                "depth: float",
+                                "bbox_2d: Tuple[float, float, float, float]"
+                            ]
+                        },
+                        {
+                            "name": "FusedFrame",
+                            "type": "dataclass",
+                            "fields": [
+                                "frame_index: int",
+                                "timestamp: float",
+                                "human_pose_3d: Optional[Pose3D]",
+                                "objects_3d: List[Object3D]",
+                                "fusion_confidence: float",
+                                "frame_quality: str"
+                            ]
+                        },
+                        {
+                            "name": "FusedSequence",
+                            "type": "dataclass",
+                            "fields": [
+                                "frames: List[FusedFrame]",
+                                "metadata: Dict[str, Any]",
+                                "human_analysis: Dict[str, Any]",
+                                "object_analysis: Dict[str, Any]",
+                                "interaction_analysis: Dict[str, Any]"
+                            ]
+                        }
+                    ],
+                    "dependencies": [
+                        "numpy",
+                        "typing",
+                        "dataclasses",
+                        "time",
+                        "src.pose_detector",
+                        "src.object_detector",
+                        "src.coordinate_3d_generator"
+                    ]
+                },
+                "src/quality_assessor.py": {
+                    "classes": [
+                        {
+                            "name": "QualityAssessor",
+                            "methods": [
+                                "__init__(self, min_resolution=(720, 480), min_fps=24, min_duration=0.5, max_duration=30.0, min_movement_threshold=0.05)",
+                                "assess_video_suitability(self, video_path, video_metadata) -> VideoSuitability",
+                                "assess_processing_quality(self, poses_3d, object_frames, fused_sequence, video_metadata, processing_time) -> QualityMetrics",
+                                "_assess_pose_quality(self, poses_3d) -> Dict[str, Any]",
+                                "_assess_object_quality(self, object_frames) -> Dict[str, Any]",
+                                "_assess_fusion_quality(self, fused_sequence) -> Dict[str, Any]",
+                                "_assess_video_technical_quality(self, video_metadata) -> Dict[str, Any]",
+                                "_assess_movement_quality(self, poses_3d) -> Dict[str, Any]",
+                                "_determine_confidence_level(self, overall_score) -> str",
+                                "should_proceed_with_segmentation(self, quality_metrics) -> Tuple[bool, str]",
+                                "generate_quality_report(self, quality_metrics) -> str"
+                            ],
+                            "attributes": [
+                                "min_resolution",
+                                "min_fps",
+                                "min_duration",
+                                "max_duration",
+                                "min_movement_threshold",
+                                "quality_thresholds",
+                                "score_weights"
+                            ],
+                            "purpose": "Assesses video processing quality and video suitability for pipeline with comprehensive metrics and filtering"
+                        }
+                    ],
+                    "data_types": [
+                        {
+                            "name": "QualityMetrics",
+                            "type": "dataclass",
+                            "fields": [
+                                "overall_score: float",
+                                "processing_success: bool",
+                                "confidence_level: str",
+                                "pose_quality: Dict[str, float]",
+                                "object_quality: Dict[str, float]",
+                                "fusion_quality: Dict[str, float]",
+                                "video_quality: Dict[str, float]",
+                                "movement_quality: Dict[str, float]",
+                                "warnings: List[str]",
+                                "recommendations: List[str]",
+                                "processing_time: float"
+                            ]
+                        },
+                        {
+                            "name": "VideoSuitability",
+                            "type": "dataclass",
+                            "fields": [
+                                "is_suitable: bool",
+                                "suitability_score: float",
+                                "issues: List[str]",
+                                "recommendations: List[str]"
+                            ]
+                        }
+                    ],
+                    "dependencies": [
+                        "numpy",
+                        "typing",
+                        "dataclasses",
+                        "cv2",
+                        "src.pose_detector",
+                        "src.object_detector",
+                        "src.coordinate_3d_generator",
+                        "src.data_fusion"
+                    ]
+                },
+                "src/motion_segmenter.py": {
+                    "classes": [
+                        {
+                            "name": "MotionSegmenter",
+                            "methods": [
+                                "__init__(self, velocity_threshold=0.05, phase_min_duration=0.1, cycle_detection_method='velocity', smoothing_window=5)",
+                                "segment_motion(self, fused_sequence, sport_type='soccer') -> SegmentedMotion",
+                                "_extract_movement_data(self, frames, sport_type) -> Dict[str, Any]",
+                                "_detect_movement_phases(self, movement_data, frames) -> List[MotionPhase]",
+                                "_detect_movement_cycles(self, movement_data, frames, phases) -> List[MovementCycle]",
+                                "_detect_cycles_by_velocity(self, movement_data, frames, phases) -> List[MovementCycle]",
+                                "_detect_cycles_by_dtw(self, movement_data, frames, phases) -> List[MovementCycle]",
+                                "_detect_cycles_by_periodicity(self, movement_data, frames, phases) -> List[MovementCycle]",
+                                "_identify_key_events(self, fused_sequence, movement_data) -> List[Dict[str, Any]]",
+                                "_find_loop_points(self, movement_data, cycles) -> List[Dict[str, Any]]",
+                                "_generate_coaching_insights(self, cycles, phases, key_events) -> Dict[str, Any]",
+                                "get_phase_at_timestamp(self, segmented_motion, timestamp) -> Optional[MotionPhase]",
+                                "get_cycle_at_timestamp(self, segmented_motion, timestamp) -> Optional[MovementCycle]",
+                                "export_segmentation_data(self, segmented_motion) -> Dict[str, Any]"
+                            ],
+                            "attributes": [
+                                "velocity_threshold",
+                                "phase_min_duration",
+                                "cycle_detection_method",
+                                "smoothing_window",
+                                "sports_key_points"
+                            ],
+                            "purpose": "Segments motion into phases and cycles for coaching analysis with sport-specific movement detection and loop point identification"
+                        }
+                    ],
+                    "data_types": [
+                        {
+                            "name": "MotionPhase",
+                            "type": "dataclass",
+                            "fields": [
+                                "name: str",
+                                "start_frame: int",
+                                "end_frame: int",
+                                "start_time: float",
+                                "end_time: float",
+                                "duration: float",
+                                "phase_type: str",
+                                "key_events: List[Dict[str, Any]]",
+                                "movement_intensity: float",
+                                "primary_body_parts: List[str]"
+                            ]
+                        },
+                        {
+                            "name": "MovementCycle",
+                            "type": "dataclass",
+                            "fields": [
+                                "cycle_id: int",
+                                "start_frame: int",
+                                "end_frame: int",
+                                "start_time: float",
+                                "end_time: float",
+                                "duration: float",
+                                "phases: List[MotionPhase]",
+                                "cycle_quality: float",
+                                "peak_moments: List[Dict[str, Any]]",
+                                "loop_points: Tuple[int, int]"
+                            ]
+                        },
+                        {
+                            "name": "SegmentedMotion",
+                            "type": "dataclass",
+                            "fields": [
+                                "total_duration: float",
+                                "total_frames: int",
+                                "movement_cycles: List[MovementCycle]",
+                                "overall_phases: List[MotionPhase]",
+                                "key_events: List[Dict[str, Any]]",
+                                "loop_recommendations: List[Dict[str, Any]]",
+                                "coaching_insights: Dict[str, Any]"
+                            ]
+                        }
+                    ],
+                    "dependencies": [
+                        "numpy",
+                        "typing",
+                        "dataclasses",
+                        "scipy.signal",
+                        "scipy.spatial.distance",
+                        "dtaidistance",
+                        "src.data_fusion"
+                    ]
+                },
+                "src/model_creator_fusion.py": {
+                    "classes": [
+                        {
+                            "name": "ModelCreatorFusion",
+                            "methods": [
+                                "__init__(self, coordinate_precision=3, compress_output=True, optimize_for_web=True, include_interaction_events=True)",
+                                "create_fused_3d_model(self, fused_sequence) -> FusedModel3D",
+                                "_create_human_keyframes(self, fused_frames) -> List[ModelKeyframe]",
+                                "_create_object_keyframes(self, fused_frames) -> List[ObjectKeyframe]",
+                                "_create_interaction_events(self, interaction_analysis) -> List[InteractionEvent]",
+                                "export_fused_to_json(self, fused_model, output_path) -> Dict[str, Any]",
+                                "_fused_model_to_dict(self, fused_model) -> Dict[str, Any]",
+                                "get_fused_model_statistics(self, fused_model) -> Dict[str, Any]",
+                                "compare_with_human_only_model(self, fused_model, human_only_size) -> Dict[str, Any]"
+                            ],
+                            "attributes": [
+                                "coordinate_precision",
+                                "compress_output",
+                                "optimize_for_web",
+                                "include_interaction_events",
+                                "object_render_hints",
+                                "bone_definitions"
+                            ],
+                            "purpose": "Extended ModelCreator that exports unified human + object + interaction data to web-optimized JSON with render hints"
+                        }
+                    ],
+                    "data_types": [
+                        {
+                            "name": "ObjectKeyframe",
+                            "type": "dataclass",
+                            "fields": [
+                                "timestamp: float",
+                                "frame_index: int",
+                                "objects: List[Dict[str, Any]]"
+                            ]
+                        },
+                        {
+                            "name": "InteractionEvent",
+                            "type": "dataclass",
+                            "fields": [
+                                "timestamp: float",
+                                "frame_index: int",
+                                "keypoint_name: str",
+                                "keypoint_index: int",
+                                "object_class: str",
+                                "distance: float",
+                                "interaction_type: str"
+                            ]
+                        },
+                        {
+                            "name": "FusionMetadata",
+                            "type": "dataclass",
+                            "fields": [
+                                "drill_name: str",
+                                "duration_seconds: float",
+                                "fps: float",
+                                "total_frames: int",
+                                "world_scale: float",
+                                "creation_timestamp: float",
+                                "file_version: str",
+                                "coordinate_system: str",
+                                "fusion_settings: Dict[str, Any]",
+                                "quality_distribution: Dict[str, int]",
+                                "object_types_detected: List[str]",
+                                "total_interactions: int"
+                            ]
+                        },
+                        {
+                            "name": "FusedModel3D",
+                            "type": "dataclass",
+                            "fields": [
+                                "metadata: FusionMetadata",
+                                "skeleton_structure: List[SkeletonBone]",
+                                "human_keyframes: List[ModelKeyframe]",
+                                "object_keyframes: List[ObjectKeyframe]",
+                                "interaction_events: List[InteractionEvent]",
+                                "human_analysis: Dict[str, Any]",
+                                "object_analysis: Dict[str, Any]",
+                                "interaction_analysis: Dict[str, Any]"
+                            ]
+                        }
+                    ],
+                    "dependencies": [
+                        "json",
+                        "numpy",
+                        "gzip",
+                        "time",
+                        "pathlib",
+                        "dataclasses",
+                        "typing",
+                        "src.model_creator",
+                        "src.data_fusion"
+                    ]
+                }
+            },
+            "test_files": {
+                "tests/test_video_loading.py": {
+                    "functions": [
+                        "test_video_loading()"
+                    ],
+                    "purpose": "Verify video loading and frame extraction functionality"
+                },
+                "tests/test_pose_detection.py": {
+                    "functions": [
+                        "test_pose_detection()"
+                    ],
+                    "purpose": "Test MediaPipe pose detection on elastico video, show keypoint confidence"
+                },
+                "tests/test_smoothing.py": {
+                    "functions": [
+                        "test_smoothing()"
+                    ],
+                    "purpose": "Compare original vs smoothed pose data, validate temporal filtering"
+                },
+                "tests/test_model_creation.py": {
+                    "functions": [
+                        "test_model_creation()",
+                        "test_model_creator_features()"
+                    ],
+                    "purpose": "Test complete pipeline: video → pose → smoothing → 3D → model → JSON export with compression verification"
+                },
+                "tests/test_object_detection.py": {
+                    "functions": [
+                        "test_object_detection_basic()",
+                        "test_object_tracking()",
+                        "test_sports_enhancement()",
+                        "test_performance_comparison()"
+                    ],
+                    "purpose": "Test YOLO object detection, tracking across frames, sports-specific enhancement, and performance benchmarking"
+                }
+            },
+            "project_structure": [
+                "sports_cv_processing/",
+                "├── venv/",
+                "├── src/",
+                "│   ├── video_processor.py",
+                "│   ├── pose_detector.py",
+                "│   ├── data_smoother.py",
+                "│   └── coordinate_3d_generator.py",
+                "├── data/",
+                "│   └── elastico_skill_1.mp4",
+                "├── output/",
+                "├── tests/",
+                "│   ├── test_video_loading.py",
+                "│   ├── test_pose_detection.py",
+                "│   ├── test_smoothing.py",
+                "│   └── test_3d_generation.py",
+                "└── requirements.txt"
+            ]
+        },
+        "coding_style": {
+            "architecture": "Modular class-based design with single responsibility principle",
+            "error_handling": "Try-catch blocks with detailed error messages and graceful degradation",
+            "resource_management": "Context managers (with statements) for automatic cleanup",
+            "data_structures": "Dataclasses for structured data, type hints for clarity",
+            "naming_convention": "Snake_case for functions/variables, PascalCase for classes",
+            "documentation": "Docstrings for all classes/methods, inline comments for complex logic"
+        },
+        "testing_strategy": {
+            "structure": "Separate tests/ directory with test_[module_name].py files",
+            "approach": "Integration testing with real video data, not unit tests",
+            "output_format": "Detailed console output with emojis for visual clarity",
+            "validation": "Compare before/after data, show sample results, verify success rates",
+            "error_reporting": "Exception handling with traceback for debugging"
+        },
+        "data_flow_pattern": {
+            "input": "Video file → Frame extraction → Processing → Data structures",
+            "processing": "Class-based processors with clear input/output contracts",
+            "validation": "Test intermediate results at each step",
+            "output": "Structured data ready for next pipeline stage"
+        },
+        "key_patterns_used": {
+            "generator_pattern": "yield for memory-efficient frame processing",
+            "context_managers": "__enter__/__exit__ methods for resource cleanup",
+            "dataclasses": "Structured data containers with automatic methods",
+            "type_hints": "Clear interface definitions and IDE support",
+            "modular_design": "Each step as separate class, easy to debug/replace"
+        }
+    },
+    "integration_point": {
+        "approach": "Parallel YOLO detection alongside human pose",
+        "target_objects": [
+            "soccer_ball",
+            "basketball",
+            "football",
+            "cones",
+            "goals"
+        ],
+        "libraries": "ultralytics (YOLOv8), OpenCV object tracking",
+        "data_fusion": "Combine human keypoints + object positions in unified JSON",
+        "performance_impact": "~30% additional CPU usage on Pi 5",
+        "implementation_priority": "Phase 2 - after human tracking perfected"
+    },
+    "approach": {
+        "phase_1": "Human pose tracking only (MediaPipe focus)",
+        "phase_2_future": "Add YOLO object detection for balls/cones",
+        "integration_approach": "Unified data processing (Approach B)",
+        "technical_notes": {
+            "mediapipe_limitation": "Only tracks human bodies, not cones/balls/equipment",
+            "multiple_people": "MediaPipe detects multiple, need manual selection logic",
+            "future_object_detection": "YOLO + MediaPipe uses ~70% Pi 5 CPU"
+        }
+    },
+    "data_processing_pipeline": {
+        "approach": "Combined raw data → unified 3D processing",
+        "flow": [
+            "Video → MediaPipe → Human keypoints",
+            "Video → YOLO (future) → Object positions",
+            "Combine raw data → Single JSON",
+            "Single JSON → Unified 3D Model → Export"
+        ],
+        "advantages": [
+            "Synchronized timing - frame-by-frame processing",
+            "Unified coordinate system",
+            "Simpler web rendering - one model file",
+            "Better performance - single pipeline"
+        ]
+    },
+    "3d_model_specifications": {
+        "type": "JSON-based keyframe animation (not traditional 3D mesh)",
+        "structure": {
+            "metadata": "Duration, FPS, drill name",
+            "skeleton_structure": "33 bone connections from MediaPipe",
+            "keyframes": "Time-based joint positions [x,y,z] for animation"
+        },
+        "file_size": "1-10KB (coordinate data only)",
+        "visual_representation": {
+            "joints": "Small spheres/orbs at each keypoint",
+            "bones": "Lines connecting related joints",
+            "animation": "Joints move through 3D space over time"
+        }
+    },
+    "human_figure_overlay": {
+        "selected_approach": "Option 1 - Pre-built 3D Human Model",
+        "implementation": {
+            "tech_stack": "Three.js + Ready Player Me/Mixamo/free rigged models",
+            "process": [
+                "Load generic 3D human mesh (one-time browser download)",
+                "Map skeleton keypoints to mesh bone structure",
+                "Animate mesh using JSON keyframe data"
+            ],
+            "file_structure": {
+                "mesh_size": "200KB-2MB (cached in browser)",
+                "animation_data": "Tiny JSON keyframe data",
+                "bone_mapping": "Maps MediaPipe keypoints to standard bone names"
+            }
+        },
+        "rendering_options": {
+            "skeleton_view": "Lines + dots (debugging/performance)",
+            "avatar_mesh": "Realistic 3D human figure",
+            "user_control": "Toggle between views based on preference/device"
+        }
+    },
+    "implementation_categories": {
+        "1_environment_setup": {
+            "tech": "Python 3.11+, virtual environment, pip",
+            "goal": "Isolated Python environment with required packages",
+            "packages": "MediaPipe, OpenCV, NumPy, SciPy, Open3D, dtaidistance, Pandas, Numba, Joblib, Matplotlib"
+        },
+        "2_video_preprocessing": {
+            "tech": "OpenCV, MediaPipe",
+            "goal": "Load and prepare video files for pose detection",
+            "process": "Read frames, resize/normalize, extract metadata"
+        },
+        "3_pose_detection": {
+            "tech": "MediaPipe Pose (33 keypoints)",
+            "goal": "Extract 2D pose keypoints from each frame",
+            "focus": "High accuracy for wrists, ankles, arms"
+        },
+        "4_temporal_smoothing": {
+            "tech": "NumPy, SciPy, Pandas",
+            "goal": "Clean noisy keypoint data and smooth trajectories",
+            "process": "Apply filters, interpolate missing points, remove outliers"
+        },
+        "5_3d_coordinate_generation": {
+            "tech": "NumPy, mathematical transforms, biomechanical constraints",
+            "goal": "Convert 2D keypoints to 3D coordinates with realistic scaling",
+            "process": "Depth estimation, world scaling, coordinate normalization, bone constraints"
+        },
+        "6_model_creation": {
+            "tech": "Open3D, JSON export",
+            "goal": "Create lightweight 3D skeleton data structure",
+            "output": "Orb-and-line skeleton, optimized 1-10KB JSON"
+        },
+        "7_object_detection_yolo": {
+            "tech": "YOLO (ultralytics), OpenCV object tracking",
+            "goal": "Detect balls, cones, and sports equipment in parallel with pose",
+            "process": "Run YOLOv8 alongside MediaPipe, combine detection data"
+        },
+        "8_data_fusion": {
+            "tech": "NumPy, custom integration logic",
+            "goal": "Combine human pose + object positions into unified dataset",
+            "process": "Synchronize timestamps, merge coordinate systems"
+        },
+        "9_quality_assessment": {
+            "tech": "Custom metrics, statistical analysis",
+            "goal": "Automatically validate processing success and video suitability",
+            "checks": "Keypoint confidence, movement smoothness, detection rates, video quality"
+        },
+        "10_motion_segmentation": {
+            "tech": "dtaidistance (Dynamic Time Warping), NumPy",
+            "goal": "Identify movement phases for step-by-step playback",
+            "features": "Movement cycles, phase segments, loop points"
+        },
+        "11_web_integration": {
+            "tech": "JSON, compression algorithms",
+            "goal": "Export for Three.js web display",
+            "output": "Structured JSON with keyframes, metadata, viewing controls"
+        },
+        "12_batch_processing": {
+            "tech": "Joblib, file management",
+            "goal": "Process multiple videos efficiently",
+            "features": "Queue system, progress tracking, error handling, cleanup"
+        }
+    },
+    "development_environment": {
+        "development_platform": "MacBook Pro (Python 3.12.1, VS Code)",
+        "deployment_platform": "Raspberry Pi 5 (future transfer)",
+        "python_version": "3.12.1 (dev) / 3.11+ (Pi 5)",
+        "transfer_strategy": "Develop on Mac, package list tracked for Pi 5 deployment",
+        "performance_considerations": {
+            "mediapipe_cpu_usage": "Moderate on Pi 5",
+            "future_yolo_addition": "~70% CPU when combined",
+            "optimization_libraries": "Numba for JIT compilation, Joblib for parallel processing"
+        }
+    },
+    "package_requirements": {
+        "core_cv_packages": [
+            "mediapipe>=0.10.0",
+            "opencv-python>=4.8.0",
+            "numpy>=1.24.0",
+            "scipy>=1.10.0",
+            "open3d>=0.17.0",
+            "ultralytics>=8.0.0"
+        ],
+        "data_processing": [
+            "pandas>=2.0.0",
+            "dtaidistance>=2.3.0"
+        ],
+        "optimization": [
+            "numba>=0.58.0",
+            "joblib>=1.3.0"
+        ],
+        "development_tools": [
+            "matplotlib>=3.7.0",
+            "jupyter>=1.0.0"
+        ],
+        "installation_command_mac": "pip install mediapipe opencv-python numpy scipy open3d dtaidistance pandas numba joblib matplotlib jupyter ultralytics",
+        "installation_command_pi5": "pip install mediapipe opencv-python numpy scipy open3d dtaidistance pandas numba joblib matplotlib ultralytics"
+    },
+    "progress_log": {
+        "step_1_environment_setup": {
+            "status": "COMPLETED",
+            "date": "2025-07-27",
+            "platform_decision": "Develop on MacBook Pro first, transfer to Pi 5 later",
+            "python_version_confirmed": "3.12.1",
+            "ide": "VS Code",
+            "completed_actions": [
+                "✅ Created virtual environment",
+                "✅ Installed all core packages successfully",
+                "✅ Verified imports working",
+                "✅ Created basic project structure"
+            ],
+            "project_structure": [
+                "sports_cv_processing/",
+                "├── venv/",
+                "├── src/",
+                "├── data/",
+                "├── output/",
+                "├── tests/",
+                "└── requirements.txt"
+            ]
+        },
+        "step_2_video_preprocessing": {
+            "status": "COMPLETED",
+            "date": "2025-07-27",
+            "goal": "Load and prepare video files for pose detection",
+            "completed_actions": [
+                "✅ Created VideoProcessor class",
+                "✅ Implemented frame extraction with generator pattern",
+                "✅ Added video metadata extraction",
+                "✅ Tested with elastico_skill_1.mp4"
+            ],
+            "test_results": {
+                "video_file": "elastico_skill_1.mp4",
+                "resolution": "1080x1920 (vertical)",
+                "fps": 60.0,
+                "duration": "2.00 seconds",
+                "frame_count": 120,
+                "frame_processing": "✅ Successfully processed frames"
+            },
+            "strategic_decision": "Testing with vertical videos to match real-world user content (phone recordings)",
+            "technical_notes": [
+                "Generator pattern efficiently handles memory usage",
+                "BGR to RGB conversion for MediaPipe compatibility",
+                "Proper resource cleanup with context managers"
+            ]
+        },
+        "step_3_pose_detection": {
+            "status": "COMPLETED",
+            "date": "2025-07-27",
+            "goal": "Extract 2D pose keypoints from video frames using MediaPipe",
+            "completed_actions": [
+                "✅ Created PoseDetector class with MediaPipe integration",
+                "✅ Implemented keypoint extraction for all 33 pose landmarks",
+                "✅ Added sports-specific confidence calculation",
+                "✅ Successfully tested with elastico_skill_1.mp4"
+            ],
+            "test_results": {
+                "detection_confidence": "99.1% average",
+                "success_rate": "100% (all frames detected)",
+                "keypoint_confidence": "97-99% for critical sports points (wrists, ankles)",
+                "tracking_quality": "Smooth movement detection, captures subtle elastico footwork",
+                "vertical_video_performance": "Excellent - portrait orientation handled perfectly"
+            },
+            "technical_achievements": [
+                "High-precision tracking of soccer skill movements",
+                "Robust detection in vertical video format",
+                "Consistent confidence scores across frames",
+                "Ready for 3D coordinate conversion"
+            ],
+            "issue_resolved": "Fixed MediaPipe parameter typo (smooth_segmentation)"
+        },
+        "step_4_temporal_smoothing": {
+            "status": "COMPLETED",
+            "date": "2025-07-27",
+            "goal": "Clean noisy keypoint data and smooth movement trajectories",
+            "completed_actions": [
+                "✅ Created DataSmoother class with multiple smoothing algorithms",
+                "✅ Implemented confidence-based interpolation",
+                "✅ Added outlier detection and removal",
+                "✅ Applied Savitzky-Golay temporal filtering",
+                "✅ Successfully tested with 60 frames of elastico data"
+            ],
+            "test_results": {
+                "frames_processed": "60 frames (1 second of video)",
+                "smoothing_quality": "Excellent - minimal changes preserve natural movement",
+                "ankle_tracking_precision": "Differences of 0.0001-0.0013 (very smooth)",
+                "data_integrity": "100% - no frames lost, all keypoints preserved"
+            },
+            "algorithms_implemented": [
+                "Low-confidence point interpolation",
+                "Statistical outlier removal",
+                "Savitzky-Golay smoothing filter",
+                "Moving average fallback"
+            ]
+        },
+        "step_5_3d_coordinate_generation": {
+            "status": "COMPLETED",
+            "date": "2025-08-02",
+            "goal": "Convert 2D keypoints to 3D coordinates with realistic scaling",
+            "completed_actions": [
+                "✅ Created Coordinate3DGenerator class with world scaling",
+                "✅ Implemented biomechanical constraints and depth estimation",
+                "✅ Added movement quality analysis functionality",
+                "✅ Created skeleton bone structure for 3D visualization",
+                "✅ Successfully tested with full pipeline integration"
+            ],
+            "test_results": {
+                "frames_processed": "30 frames (0.48 seconds of elastico movement)",
+                "world_scale_calculated": "4.502 meters/unit (realistic human proportions)",
+                "movement_tracking_quality": {
+                    "right_ankle_movement": {
+                        "x_range": "0.119m (side-to-side)",
+                        "y_range": "0.186m (up-down)",
+                        "z_range": "0.686m (forward-back)",
+                        "total_distance": "1.716m traveled"
+                    },
+                    "coordinate_precision": "Millimeter-level accuracy in world coordinates"
+                },
+                "skeleton_structure": "31 bones defined for 3D rendering",
+                "pipeline_integration": "✅ Seamless flow: video → pose → smoothing → 3D"
+            },
+            "technical_achievements": [
+                "Real-world coordinate scaling based on human body proportions",
+                "Depth estimation with biomechanical constraints",
+                "Movement quality analysis with detailed metrics",
+                "Full skeleton structure ready for 3D visualization",
+                "Robust pipeline handling vertical video format"
+            ],
+            "key_features_implemented": [
+                "World scale calculation from shoulder-hip torso measurements",
+                "3D coordinate conversion with proper axis flipping",
+                "Depth constraint application for realistic body positioning",
+                "Movement analysis for sports performance evaluation",
+                "Bone connection mapping for skeleton visualization"
+            ]
+        },
+        "step_6_model_creation": {
+            "status": "COMPLETED",
+            "date": "2025-08-02",
+            "goal": "Create lightweight 3D skeleton JSON export for web visualization",
+            "completed_actions": [
+                "✅ Created ModelCreator class with optimized JSON export",
+                "✅ Implemented 31-bone skeleton structure with group categorization",
+                "✅ Added comprehensive movement analysis for sports metrics",
+                "✅ Built web-optimized keyframe system with compression",
+                "✅ Successfully tested complete pipeline with file verification"
+            ],
+            "test_results": {
+                "model_export": "47,161 bytes → 7,932 bytes (83.2% compression)",
+                "file_format": "Gzipped JSON optimized for Three.js",
+                "keyframe_data": "30 keyframes with 33 keypoints each",
+                "skeleton_structure": {
+                    "total_bones": 31,
+                    "bone_groups": {
+                        "face": "9 bones",
+                        "torso": "4 bones",
+                        "left_arm": "5 bones",
+                        "right_arm": "5 bones",
+                        "left_leg": "4 bones",
+                        "right_leg": "4 bones"
+                    }
+                },
+                "movement_analysis": {
+                    "ankle_tracking": "0.059m/frame average velocity",
+                    "bounding_box": "1.226m x 1.692m x 1.050m movement space",
+                    "coordinate_precision": "3 decimal places for web optimization"
+                },
+                "web_readiness": "✅ Ready for Three.js animation rendering"
+            },
+            "technical_achievements": [
+                "83.2% file compression while maintaining precision",
+                "Comprehensive movement analysis with velocity calculations",
+                "Web-optimized JSON structure with shortened keys",
+                "Bone grouping system for selective rendering control",
+                "Real-time exportable format under 8KB compressed"
+            ],
+            "data_structures_created": [
+                "ModelMetadata: drill info, timing, scale factors",
+                "SkeletonBone: grouped bone connections for rendering",
+                "ModelKeyframe: optimized keypoint data per frame",
+                "Model3D: complete exportable structure"
+            ]
+        },
+        "step_7_object_detection_yolo": {
+            "status": "COMPLETED",
+            "date": "2025-08-02",
+            "goal": "Add YOLO object detection for balls, cones, and sports equipment",
+            "completed_actions": [
+                "✅ Created ObjectDetector class with YOLOv8 integration",
+                "✅ Implemented sports-specific object filtering and enhancement",
+                "✅ Added object tracking across frames for consistency",
+                "✅ Built performance comparison system for different model sizes",
+                "✅ Successfully tested with elastico video showing 21 detections"
+            ],
+            "test_results": {
+                "detection_performance": {
+                    "yolov8n": "25.5 FPS with 21 detections",
+                    "yolov8s": "13.5 FPS with 21 detections",
+                    "processing_time": "0.74s for 10 frames"
+                },
+                "sports_enhancement": "Context-aware ball classification (soccer, basketball, american_football, tennis)",
+                "object_tracking": "Frame-to-frame consistency with confidence smoothing",
+                "sports_classes_supported": "13 sports-relevant classes from 80 total COCO classes"
+            },
+            "technical_achievements": [
+                "YOLOv8 nano model achieving 25+ FPS on Mac hardware",
+                "Sports-specific object filtering reducing false positives",
+                "Context-aware enhancement distinguishing different ball types",
+                "Simple tracking algorithm for temporal consistency",
+                "Performance benchmarking system for model size optimization"
+            ],
+            "sports_objects_detected": [
+                "sports_ball (with sub-classification)",
+                "soccer_ball, basketball, american_football, tennis_ball",
+                "person (players, athletes, coaches)",
+                "sports equipment (bats, rackets, bottles)"
+            ],
+            "integration_ready": "✅ Synchronized with existing timestamp system for pose detection fusion"
+        },
+        "step_8_data_fusion": {
+            "status": "COMPLETED",
+            "date": "2025-08-02",
+            "goal": "Combine human pose data with object detection into unified 3D models",
+            "completed_actions": [
+                "✅ Created DataFusion class with frame alignment and 3D object conversion",
+                "✅ Implemented hybrid smoothing: light YOLO + context-aware fusion smoothing",
+                "✅ Built human-object interaction detection with distance thresholds",
+                "✅ Added sports-specific depth estimation using object size and human context",
+                "✅ Created ModelCreatorFusion for unified human+object+interaction JSON export"
+            ],
+            "technical_achievements": [
+                "Frame synchronization with ±20ms tolerance for pose and object alignment",
+                "Two-stage smoothing: 3-frame YOLO noise removal + 5-frame context-aware refinement",
+                "Sports-intelligent object positioning using human pose proximity",
+                "Comprehensive interaction analysis with foot-ball contact detection",
+                "Web-optimized unified export with render hints for Three.js visualization"
+            ],
+            "data_structures_created": [
+                "Object3D: 3D objects with world coordinates and depth estimation",
+                "FusedFrame: Combined human pose + objects for single frame",
+                "FusedSequence: Complete sequence with comprehensive analysis",
+                "FusedModel3D: Exportable model with human + object + interaction data"
+            ],
+            "integration_features": [
+                "Synchronized timestamps for seamless animation",
+                "Context-aware smoothing using human keypoints to refine ball movement",
+                "Interaction event detection for coaching analysis",
+                "Object render hints (sphere radius, colors) for web visualization",
+                "Size comparison analysis between human-only vs fused models"
+            ]
+        },
+        "step_9_quality_assessment": {
+            "status": "COMPLETED",
+            "date": "2025-08-02",
+            "goal": "Automatically validate processing success and video suitability",
+            "completed_actions": [
+                "✅ Created QualityAssessor class with pre and post-processing validation",
+                "✅ Implemented video suitability assessment before expensive pipeline processing",
+                "✅ Built comprehensive quality metrics with weighted scoring system",
+                "✅ Added automatic filtering for motion segmentation readiness",
+                "✅ Created detailed quality reporting with warnings and recommendations"
+            ],
+            "technical_achievements": [
+                "Pre-processing video validation (resolution, fps, duration, format)",
+                "Weighted quality assessment: 30% pose + 20% object + 20% fusion + 15% video + 15% movement",
+                "Smart filtering prevents bad videos from reaching expensive segmentation",
+                "Movement analysis determines if video shows actual skill performance",
+                "Quality gates ensure only processable videos continue through pipeline"
+            ],
+            "quality_metrics_implemented": [
+                "Pose quality: confidence, detection rate, key sports points tracking",
+                "Object quality: detection rate, confidence, temporal consistency",
+                "Fusion quality: success rate, interaction detection, frame quality distribution",
+                "Video quality: resolution, frame rate, duration optimization",
+                "Movement quality: range, smoothness, activity level assessment"
+            ],
+            "filtering_capabilities": [
+                "Video suitability pre-screening (saves processing time)",
+                "Processing success validation (pipeline worked correctly)",
+                "Segmentation readiness assessment (quality sufficient for next step)",
+                "Automatic recommendations for video improvement"
+            ]
+        },
+        "step_10_motion_segmentation": {
+            "status": "COMPLETED",
+            "date": "2025-08-02",
+            "goal": "Identify movement phases for step-by-step playback on quality-validated videos",
+            "completed_actions": [
+                "✅ Created MotionSegmenter class with sport-specific movement analysis",
+                "✅ Implemented velocity-based phase detection (setup, execution, recovery)",
+                "✅ Built movement cycle detection with quality scoring",
+                "✅ Added key event identification (ball contact, direction changes)",
+                "✅ Created optimal loop point detection for seamless video playback",
+                "✅ Generated comprehensive coaching insights and recommendations"
+            ],
+            "technical_achievements": [
+                "Sport-specific analysis: soccer (ankle/knee), basketball (wrist/elbow), general (all parts)",
+                "Movement phase detection using velocity patterns and peak analysis",
+                "Cycle quality scoring based on movement smoothness and intensity",
+                "Key event extraction from fusion data (foot-ball contacts, direction changes)",
+                "Loop point optimization with position and velocity similarity analysis",
+                "Coaching insights with trend analysis and skill improvement recommendations"
+            ],
+            "segmentation_capabilities": [
+                "Movement phases: automatic detection of setup, execution, recovery phases",
+                "Movement cycles: complete skill repetitions with quality assessment",
+                "Key events: ball contacts, direction changes, peak moments",
+                "Loop points: optimal start/end points for seamless video looping",
+                "Coaching insights: quality trends, consistency metrics, improvement recommendations"
+            ],
+            "web_integration_features": [
+                "Phase-by-phase playback support ('show me just the execution phase')",
+                "Seamless looping at optimal points for skill practice",
+                "Quality scoring and progress tracking over multiple attempts",
+                "Timestamp queries for interactive timeline navigation",
+                "Export function for JSON-serializable web display data"
+            ]
+        },
+        "step_11_web_integration": {
+            "status": "COMPLETED",
+            "date": "2025-08-02",
+            "goal": "Create Three.js-optimized export formats and web visualization utilities",
+            "completed_actions": [
+                "✅ Created WebIntegrator class with Three.js optimization",
+                "✅ Implemented sport-specific camera positioning and visualization config",
+                "✅ Built comprehensive playback controls with timeline markers",
+                "✅ Added numpy type conversion for JSON serialization",
+                "✅ Created Three.js loader configuration for web applications",
+                "✅ Integrated complete pipeline with single-command execution"
+            ],
+            "technical_achievements": [
+                "Three.js-optimized JSON export with skeleton animation and object movement",
+                "Interactive timeline with phase controls, cycle navigation, and loop points",
+                "Sport-specific camera positioning (soccer side view, basketball elevated)",
+                "Web-optimized data structure with mobile support and compression",
+                "Numpy type conversion system for seamless JSON serialization",
+                "Complete pipeline integration with quality gates and error handling"
+            ],
+            "output_files_created": [
+                "{drill_name}_web_display.json.gz - Main Three.js model data",
+                "{drill_name}_loader_config.json - Three.js application configuration",
+                "{drill_name}_fusion_model.json.gz - Complete internal fusion data"
+            ],
+            "web_integration_features": [
+                "Human skeleton animation with 31 bone connections",
+                "Object animation with render hints (colors, sizes, shapes)",
+                "Interaction events with visual effects (ball contacts, direction changes)",
+                "Playback controls: loop points, phase selector, cycle navigation",
+                "Timeline markers for coaching analysis and skill breakdown",
+                "Compression: 85%+ reduction in file sizes with gzip"
+            ]
+        },
+        "step_12_complete_pipeline": {
+            "status": "COMPLETED",
+            "date": "2025-08-02",
+            "goal": "Single-command pipeline for complete video-to-web processing",
+            "completed_actions": [
+                "✅ Created sports_pipeline.py with complete 10-step processing",
+                "✅ Implemented command-line interface with sport-specific options",
+                "✅ Added comprehensive error handling and quality gates",
+                "✅ Built progress reporting and file size analytics",
+                "✅ Integrated all components into single executable pipeline"
+            ],
+            "pipeline_capabilities": [
+                "Single command processes any sports video to Three.js output",
+                "Quality assessment with automatic segmentation filtering",
+                "Sport-specific analysis (soccer, basketball, general)",
+                "Optional YOLO object detection with graceful fallback",
+                "Comprehensive output: fusion model + web display + loader config",
+                "Progress reporting with processing time and quality metrics"
+            ]
+        }
+    },
+    "current_goal": {
+        "immediate": "Finished. Refine and upgrade",
+        "testing_approach": "Start with soccer juggling/ball touches video",
+        "iteration_plan": "Perfect human tracking first, add object detection later",
+        "web_integration": "Export JSON format ready for Three.js + pre-built 3D human model"
+    }
+}
