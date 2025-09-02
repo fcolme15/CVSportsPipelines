@@ -1,2 +1,6 @@
+#Virtual environment ignore
 cv_modeling/venv/
 venv/
+
+#macOS Finder metadata
+.DS_Store
