@@ -1,0 +1,389 @@
+{
+  "v3_implementation_plan": {
+    "architecture_overview": {
+      "video_processing_hub": "frame_processor.py",
+      "description": "All video processing remains centralized in frame_processor.py which orchestrates SEQUENTIAL calls to individual component functions - no parallel processing",
+      "data_flow": "Video frames → Depth estimation → Temporal fusion → Pose detection → Object detection → Scene geometry → 3D conversion → JSON output → Three.js validation → GLB animation",
+      "memory_strategy": "Process components ONE AT A TIME in sequence to stay within M1 MacBook 16GB limit, maintain sliding windows for temporal data",
+      "sequential_processing_note": "Each component completes fully before the next component starts, results are meshed together by frame timestamp after all processing is complete"
+    },
+    "component_interactions": {
+      "frame_processor_role": "Reads video chunks, manages memory, orchestrates function calls in correct sequence",
+      "function_call_sequence": [
+        "depth_estimator.generate_depth_map(frame) → depth_map",
+        "temporal_depth_fusion.fuse_depths(current_depth, previous_depths) → fused_depth_map", 
+        "pose_detector_2d.detect(frame) → pose_2d",
+        "object_6dof_detector.detect_objects_6dof(frame, fused_depth_map) → objects_6dof",
+        "scene_geometry_estimator.detect_ground_plane(fused_depth_map, pose_2d) → ground_plane_data",
+        "unified_3d_converter.convert_with_depth(pose_2d, objects_3d, fused_depth_map, ground_plane_data) → unified_3d_frame"
+      ],
+      "data_dependencies": {
+        "depth_maps": "Required by temporal_fusion, object_detection, scene_geometry, 3d_conversion",
+        "pose_2d": "Required by scene_geometry and 3d_conversion",
+        "objects_6dof": "Required by 3d_conversion for spatial relationships", 
+        "ground_plane_data": "Required by 3d_conversion for world coordinate system",
+        "fused_depth_map": "Primary input for accurate 3D positioning"
+      }
+    },
+    "implementation_order": [
+      {
+        "phase": "1_frame_processor_foundation",
+        "description": "Build new frame_processor.py from scratch with depth map storage and sequential component orchestration",
+        "files_needed": [
+          {
+            "filename": "frame_processor.py",
+            "type": "new_file_from_scratch",
+            "testable": true,
+            "reference_design": "Use v2.0 frame_processor.py as design reference for video reading and chunk management concepts",
+            "test_method": "Process video chunks and verify memory management with placeholder component functions",
+            "new_functionality": {
+              "depth_buffer_management": "Build sliding window storage for 3-5 depth maps",
+              "memory_compression": "Implement 16-bit storage and buffer size limits",
+              "component_orchestration": "Build sequential function call framework from scratch"
+            }
+          }
+        ],
+        "testing_approach": "Test new frame processor with simple placeholder functions to verify video processing works",
+        "implementation_notes": "Build entirely new frame processor designed for v3.0 requirements, reference v2.0 for concepts only"
+      },
+      {
+        "phase": "2_core_depth_system", 
+        "description": "Build MiDaS depth estimation system that integrates with new frame processor",
+        "files_needed": [
+          {
+            "filename": "depth_estimator.py",
+            "type": "new_file_from_scratch",
+            "testable": true,
+            "dependencies": ["torch", "MiDaS", "new frame_processor.py"],
+            "test_method": "Test depth generation through new frame processor orchestration system",
+            "primary_function": "generate_depth_map(frame: np.ndarray) -> np.ndarray",
+            "function_details": {
+              "inputs": "Single RGB frame from new frame_processor",
+              "outputs": "Depth map stored in frame_processor depth buffer",
+              "called_by": "New frame_processor.py sequential orchestration loop",
+              "built_for": "Designed specifically for v3.0 memory management system"
+            }
+          }
+        ],
+        "testing_approach": "Test MiDaS integration through new frame processor, verify depth maps are stored correctly",
+        "integration_notes": "New frame_processor calls generate_depth_map() and manages depth buffer storage"
+      },
+      {
+        "phase": "3_temporal_fusion",
+        "description": "Build temporal depth consistency system using new frame processor's depth buffer",
+        "files_needed": [
+          {
+            "filename": "temporal_depth_fusion.py",
+            "type": "new_file_from_scratch",
+            "testable": true,
+            "dependencies": ["opencv-python", "depth_estimator.py", "frame_processor.py"],
+            "test_method": "Test temporal fusion using new frame processor's depth buffer management",
+            "primary_function": "fuse_depths(current_depth, depth_buffer, frame_buffer) -> np.ndarray",
+            "function_details": {
+              "inputs": "Current depth + depth buffer from new frame_processor",
+              "outputs": "Temporally fused depth map",
+              "called_by": "New frame_processor.py after depth generation",
+              "built_for": "Works with new frame_processor depth buffer design"
+            }
+          }
+        ],
+        "testing_approach": "Test temporal consistency through new frame processor orchestration",
+        "integration_notes": "Uses new frame_processor's depth buffer, designed for v3.0 memory management"
+      },
+      {
+        "phase": "4_pose_detection_system",
+        "description": "Build MediaPipe pose detection system from scratch for v3.0 integration",
+        "files_needed": [
+          {
+            "filename": "pose_detector_2d.py",
+            "type": "new_file_from_scratch",
+            "testable": true,
+            "dependencies": ["mediapipe"],
+            "reference_design": "Reference v2.0 pose_detector_2d.py for MediaPipe integration concepts",
+            "test_method": "Test MediaPipe pose detection through new frame processor",
+            "primary_function": "detect(frame: np.ndarray) -> Pose2D",
+            "function_details": {
+              "inputs": "RGB frame from new frame_processor",
+              "outputs": "Pose2D with keypoint data",
+              "called_by": "New frame_processor.py in sequential processing chain",
+              "built_for": "Designed for v3.0 sequential processing architecture"
+            }
+          }
+        ],
+        "testing_approach": "Test pose detection integration with new frame processor",
+        "integration_notes": "Built from scratch for v3.0, references v2.0 MediaPipe concepts only"
+      },
+      {
+        "phase": "5_object_pose_system",
+        "description": "Build 6DOF object detection system from scratch",
+        "files_needed": [
+          {
+            "filename": "object_6dof_detector.py",
+            "type": "new_file_from_scratch",
+            "testable": true,
+            "dependencies": ["6DOF pose models", "depth system"],
+            "test_method": "Test 6DOF detection through new frame processor orchestration",
+            "primary_function": "detect_objects_6dof(frame, fused_depth_map) -> List[Object6DOF]",
+            "function_details": {
+              "inputs": "RGB frame + fused depth map from previous steps",
+              "outputs": "List of objects with 6DOF pose data",
+              "called_by": "New frame_processor.py after pose detection",
+              "built_for": "Designed for v3.0 sequential processing chain"
+            }
+          }
+        ],
+        "testing_approach": "Test 6DOF system as standalone new component",
+        "integration_notes": "Built from scratch for v3.0, no reference to v2.0 YOLO system"
+      },
+      {
+        "phase": "6_scene_geometry",
+        "description": "Build ground plane detection system from scratch",
+        "files_needed": [
+          {
+            "filename": "scene_geometry_estimator.py",
+            "type": "new_file_from_scratch",
+            "testable": true,
+            "dependencies": ["depth_estimator.py", "pose_detector_2d.py"],
+            "test_method": "Test ground plane detection using new pose detection system",
+            "primary_function": "detect_ground_plane(fused_depth_map, pose_2d) -> dict",
+            "function_details": {
+              "inputs": "Fused depth from temporal_fusion + pose from new pose detector",
+              "outputs": "Ground plane equation and camera parameters",
+              "called_by": "New frame_processor.py after object detection completes",
+              "built_for": "Designed specifically for v3.0 data structures"
+            }
+          }
+        ],
+        "testing_approach": "Test with new pose detection system",
+        "integration_notes": "Built from scratch, works with new v3.0 pose detection component"
+      },
+      {
+        "phase": "7_unified_detector_system",
+        "description": "Build new unified detector from scratch for v3.0",
+        "files_needed": [
+          {
+            "filename": "unified_detector.py",
+            "type": "new_file_from_scratch",
+            "testable": true,
+            "reference_design": "Reference v2.0 unified_detector.py for composition pattern concepts",
+            "test_method": "Test new unified detector with v3.0 components",
+            "primary_function": "process_frame(frame, depth_map) -> Unified2DFrame",
+            "function_details": {
+              "inputs": "RGB frame + depth map",
+              "outputs": "Unified2DFrame compatible with downstream processing",
+              "called_by": "New frame_processor.py",
+              "built_for": "Designed for v3.0 depth-aware processing"
+            }
+          }
+        ],
+        "testing_approach": "Test new unified detector integration",
+        "integration_notes": "Built from scratch, maintains output compatibility with downstream components"
+      },
+      {
+        "phase": "8_pipeline_integration",
+        "description": "Build new main pipeline controller that outputs JSON for validation",
+        "files_needed": [
+          {
+            "filename": "sports_pipeline_v3.py",
+            "type": "new_file_from_scratch",
+            "testable": false,
+            "reference_design": "Reference v2.0 sports_pipeline.py for overall architecture concepts",
+            "orchestration_role": "Initialize all v3.0 models and coordinate with new frame_processor to generate JSON output",
+            "test_method": "End-to-end pipeline testing with JSON output validation",
+            "function_details": {
+              "main_process": "process_video(video_path) -> orchestrates all v3.0 components and generates JSON output",
+              "initialization": "Loads all models (MiDaS, 6DOF, MediaPipe) for v3.0 pipeline",
+              "output_generation": "Receives Unified3DFrame list and exports JSON with pose_3d, objects_3d, scene_geometry, and interactions"
+            }
+          }
+        ],
+        "testing_approach": "Full pipeline testing with JSON output ready for Three.js validation",
+        "integration_notes": "Built from scratch, coordinates all new v3.0 components to produce JSON for motion validation"
+      },
+      {
+        "phase": "9_threejs_validation_system",
+        "description": "Three.js animation system for JSON output validation (ALREADY IMPLEMENTED)",
+        "files_completed": [
+          {
+            "filename": "index.html",
+            "type": "already_created",
+            "description": "Main HTML with Tailwind CSS styling and UI layout"
+          },
+          {
+            "filename": "js/main.js",
+            "type": "already_created", 
+            "description": "Main application controller coordinating all components"
+          },
+          {
+            "filename": "js/sceneManager.js",
+            "type": "already_created",
+            "description": "3D scene management with Three.js rendering"
+          },
+          {
+            "filename": "js/dataLoader.js", 
+            "type": "already_created",
+            "description": "JSON data loading and validation from pipeline output"
+          },
+          {
+            "filename": "js/animationController.js",
+            "type": "already_created",
+            "description": "Playback controls and frame management"
+          },
+          {
+            "filename": "js/uiController.js",
+            "type": "already_created", 
+            "description": "UI updates and user interactions"
+          }
+        ],
+        "features_implemented": [
+          "3D pose skeleton with connected joints",
+          "3D objects (balls, equipment) with proper shapes",
+          "Ground plane grid visualization",
+          "Interaction indicators between pose and objects", 
+          "Object motion trails",
+          "Play/Pause/Reset controls",
+          "Frame scrubbing and speed control (0.1x to 3x)",
+          "Multiple camera views (Front, Side, Top, Free)",
+          "Toggle options for all visual elements",
+          "Real-time info panel with frame data and confidence scores"
+        ],
+        "testing_approach": "Load JSON output from Phase 9 pipeline and validate motion capture quality visually",
+        "integration_notes": "System ready to consume v3.0 JSON output for motion validation before GLB conversion"
+      },
+      {
+        "phase": "10_human_animation_system",
+        "description": "Convert validated JSON output to GLB format with animated 3D human overlay",
+        "files_needed": [
+          {
+            "filename": "human_model_animator.py",
+            "type": "new_file_from_scratch",
+            "testable": true,
+            "dependencies": ["trimesh", "pygltflib", "numpy"],
+            "test_method": "Test GLB generation using sample JSON keypoint data",
+            "primary_function": "generate_animated_glb(json_data, output_path) -> str",
+            "function_details": {
+              "inputs": "Validated JSON with 3D keypoints and timestamps from Phase 10 validation",
+              "outputs": "GLB file with animated 3D human character using online rigged model",
+              "called_by": "Manual execution after JSON validation in Three.js system",
+              "core_functions": [
+                "load_online_rigged_character() -> downloads/loads base 3D human model from online source",
+                "map_keypoints_to_bones() -> direct position mapping from MediaPipe to character bones", 
+                "create_animation_keyframes() -> timeline with bone positions over timestamps",
+                "export_glb() -> package rigged model + animation into GLB format"
+              ],
+              "human_model_source": "Use online rigged character (Mixamo, Sketchfab, or similar) with standard bone hierarchy"
+            }
+          },
+          {
+            "filename": "keypoint_bone_mapper.py",
+            "type": "new_file_from_scratch", 
+            "testable": true,
+            "dependencies": ["numpy"],
+            "test_method": "Test keypoint to bone mapping with known pose data",
+            "primary_function": "map_mediapipe_to_bones(keypoints_3d) -> bone_transforms",
+            "function_details": {
+              "inputs": "33 MediaPipe keypoints with 3D coordinates",
+              "outputs": "Bone position and rotation data for 3D character",
+              "mapping_strategy": "Direct position mapping - no inverse kinematics needed",
+              "bone_hierarchy": [
+                "hip (root) -> spine -> chest -> shoulders -> arms -> hands",
+                "hip -> thighs -> shins -> ankles -> feet",
+                "chest -> neck -> head"
+              ]
+            }
+          },
+          {
+            "filename": "glb_exporter.py",
+            "type": "new_file_from_scratch",
+            "testable": true,
+            "dependencies": ["pygltflib", "trimesh"],
+            "test_method": "Test GLB file creation and validation",
+            "primary_function": "create_glb_with_animation(model, animation_data, output_path) -> bool",
+            "function_details": {
+              "inputs": "3D character model + animation keyframes + output path",
+              "outputs": "Complete GLB file with embedded animation",
+              "glb_components": [
+                "3D mesh (human character)",
+                "Skeleton (bone hierarchy)", 
+                "Animation (keyframes over time)",
+                "Materials and textures"
+              ]
+            }
+          }
+        ],
+        "testing_approach": "Test GLB generation using validated JSON from Three.js system, verify animated character quality",
+        "integration_notes": "Runs after JSON validation in Phase 10, produces final GLB output with realistic human animation",
+        "workflow_note": "Two-stage output: Phase 9 generates JSON for validation → Phase 10 validates motion → Phase 11 creates final GLB animation"
+      }
+    ],
+    "function_call_architecture": {
+      "frame_processor_main_loop": {
+        "description": "Central orchestration loop that processes video chunks with STRICT SEQUENTIAL component execution",
+        "critical_note": "NO PARALLEL PROCESSING - each component must complete before next component starts to prevent memory overflow on M1 hardware",
+        "pseudocode_flow": [
+          "for each video chunk:",
+          "  initialize: depth_buffer=[], frame_buffer=[], pose_results=[], object_results=[]",
+          "  for each frame in chunk:",
+          "    # STEP 1: MiDaS depth estimation (MUST complete first)",
+          "    depth_map = depth_estimator.generate_depth_map(frame)",
+          "    depth_buffer.append(depth_map)",
+          "    ",
+          "    # STEP 2: Temporal fusion (requires completed depth maps)",
+          "    if len(depth_buffer) >= 2:",
+          "      fused_depth = temporal_depth_fusion.fuse_depths(depth_map, depth_buffer[-5:], frame_buffer[-5:])",
+          "    else:",
+          "      fused_depth = depth_map",
+          "    ",
+          "    # STEP 3: MediaPipe pose detection (independent of depth, processes same frame)",
+          "    pose_2d = pose_detector_2d.detect(frame)",
+          "    pose_results.append((frame_index, pose_2d))",
+          "    ",
+          "    # STEP 4: 6DOF object detection (requires frame + fused_depth)",
+          "    objects_3d = object_6dof_detector.detect_objects_6dof(frame, fused_depth)",
+          "    object_results.append((frame_index, objects_3d))",
+          "    ",
+          "    # STEP 5: Scene geometry estimation (requires fused_depth + pose_2d)",
+          "    if ground_plane_data is None and pose_2d is not None:",
+          "      ground_plane_data = scene_geometry_estimator.detect_ground_plane(fused_depth, pose_2d)",
+          "    ",
+          "    # STEP 6: 3D conversion (requires ALL previous results)",
+          "    unified_3d_frame = unified_3d_converter.convert_with_depth(",
+          "      pose_2d, objects_3d, fused_depth, ground_plane_data, frame_timestamp)",
+          "    ",
+          "    # STEP 7: Memory management",
+          "    frame_buffer.append(frame)",
+          "    maintain_sliding_window_sizes()",
+          "    ",
+          "  return processed_chunk_frames"
+        ],
+        "memory_management_rules": [
+          "Only ONE component processes at a time",
+          "Depth maps stored in sliding window (max 5 frames)",
+          "Frame buffer limited to temporal fusion window size",
+          "Results arrays grow during chunk, cleared between chunks",
+          "No component starts until previous component fully completes"
+        ]
+      },
+      "data_flow_diagram": {
+        "input": "Video frame (RGB)",
+        "sequential_processing_chain": "STRICT ORDER - no component starts until previous completes",
+        "step_1": "frame → depth_estimator.generate_depth_map() → raw_depth_map (MUST COMPLETE FIRST)",
+        "step_2": "raw_depth_map + depth_buffer → temporal_depth_fusion.fuse_depths() → fused_depth_map (WAITS FOR STEP 1)", 
+        "step_3": "frame → pose_detector_2d.detect() → pose_2d (WAITS FOR STEP 2 TO COMPLETE)",
+        "step_4": "frame + fused_depth_map → object_6dof_detector.detect_objects_6dof() → objects_3d (WAITS FOR STEP 3)",
+        "step_5": "fused_depth_map + pose_2d → scene_geometry_estimator.detect_ground_plane() → ground_plane_data (WAITS FOR STEP 4)",
+        "step_6": "pose_2d + objects_3d + fused_depth_map + ground_plane_data → unified_3d_converter.convert_with_depth() → unified_3d_frame (WAITS FOR STEP 5)",
+        "output": "Unified3DFrame with accurate 3D positioning",
+        "memory_constraint_note": "Sequential processing prevents memory overflow on M1 MacBook - NEVER run components in parallel"
+      }
+    },
+    "testing_strategy": {
+      "validation_methods": {
+        "pipeline_verification": "Each component function runs without crashes or import errors",
+        "integration_testing": "Component function chains work together without breaking",
+        "motion_validation": "Three.js system validates motion capture quality visually",
+        "final_quality_check": "GLB output ready for animation software and mobile apps"
+      }
+    }
+  }
+}

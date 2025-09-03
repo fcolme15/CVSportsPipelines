@@ -1,0 +1,69 @@
+{
+    "pipeline_v3_approved_changes": {
+        "1_neural_depth_estimation": {
+            "problem": "Current system uses basic body proportion scaling and random depth variations which produces unrealistic 3D positioning",
+            "solution": "Implement MiDaS v3.1 with potential future upgrade to DPT-Large when hardware allows",
+            "solution_details": "Use Intel ISL MiDaS v3.1 to generate pixel-level depth maps instead of guessing depth values, provides real spatial understanding of scene geometry",
+            "pipeline_impact": "Changes pipeline from guessing 3D positions to using real depth data for accurate spatial reconstruction",
+            "implementation_priority": "high",
+            "components_affected": [
+                "unified_3d_converter.py"
+            ]
+        },
+        "2_temporal_depth_fusion": {
+            "problem": "Monocular input without specialized depth models makes accurate depth reconstruction nearly impossible",
+            "solution": "Implement temporal depth fusion using optical flow to track pixels between frames and blend depth estimates across 3-5 frame windows",
+            "solution_details": "Use optical flow to warp previous depth maps forward and blend with current depth estimate for temporal consistency",
+            "pipeline_impact": "Changes from independent per-frame depth to temporally consistent depth estimation reducing flickering and improving animation quality",
+            "implementation_priority": "high",
+            "components_affected": [
+                "unified_3d_converter.py",
+                "frame_processor.py"
+            ]
+        },
+        "3_scene_geometry_estimation": {
+            "problem": "Missing ground plane detection, environmental context, and camera calibration",
+            "solution": "Implement scene geometry estimation using depth maps and foot positions to detect ground plane and estimate camera parameters",
+            "solution_details": "Use depth map flat surface detection combined with foot keypoints to establish ground plane equation and estimate camera focal length from human proportions",
+            "pipeline_impact": "Changes from abstract 3D coordinates to real world grounded coordinates with proper ground reference making output suitable for animation software",
+            "implementation_priority": "medium",
+            "components_affected": [
+                "unified_3d_converter.py"
+            ]
+        },
+        "4_6dof_object_pose_estimation": {
+            "problem": "Sports objects treated as simple 2D boxes rather than 3D objects with proper poses",
+            "solution": "Replace YOLO bounding box detection with 6DOF pose estimation to get full 3D position and rotation of sports objects",
+            "solution_details": "Use 6DOF pose estimation models that provide complete position (x,y,z) and rotation (rx,ry,rz) data instead of just 2D bounding boxes from YOLO",
+            "fallback_solution": "If 6DOF fails, keep YOLO detection but use MiDaS depth sampling for accurate 3D positioning without rotation data",
+            "fallback_details": "Sample depth map at YOLO bounding box center to get real 3D position (x,y,z) while objects remain camera-facing for orientation",
+            "pipeline_impact": "Changes from simple object detection to full 3D object pose estimation providing precise positioning and orientation data for realistic animation",
+            "implementation_priority": "medium",
+            "components_affected": [
+                "object_detector_2d.py",
+                "unified_3d_converter.py"
+            ]
+        },
+        "5_depth_map_object_placement": {
+            "problem": "Objects positioned using simple size-to-distance heuristics rather than actual spatial reasoning",
+            "solution": "Implement depth map sampling at object pixel locations to get real depth values instead of guessing from bounding box size",
+            "solution_details": "Sample MiDaS depth map at detected object center coordinates to get actual distance from camera then convert to proper 3D world position",
+            "pipeline_impact": "Changes from guessing object depth from size to reading actual depth from neural estimation providing accurate spatial relationships between people and equipment",
+            "implementation_priority": "high",
+            "components_affected": [
+                "unified_3d_converter.py",
+                "fusion_2d.py"
+            ]
+        },
+        "6_memory_efficient_temporal_processing": {
+            "problem": "Current chunk processing doesn't handle temporal information efficiently",
+            "solution": "Implement depth map compression, sliding window management, and progressive processing to handle 50-60MB per frame memory requirements from temporal fusion",
+            "solution_details": "Use 16-bit depth storage, automatic frame flushing, and chunk-based temporal processing to prevent memory overflow during long video processing",
+            "pipeline_impact": "Enables processing of long videos with temporal fusion without running out of memory",
+            "implementation_priority": "medium",
+            "components_affected": [
+                "frame_processor.py"
+            ]
+        }
+    }
+}
