@@ -4,3 +4,11 @@ venv/
 
 #macOS Finder metadata
 .DS_Store
+
+#Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+#Igonre the output of running
+cv_modeling/cv_general_1.0/output/
